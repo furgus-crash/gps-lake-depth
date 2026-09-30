@@ -30,7 +30,7 @@ Under Build and deployment > Source, select Deploy from a branch.
 
 Choose the main (or master) branch and click Save.
 
-Access Your App: GitHub will provide a live URL (e.g., https://yourusername.github.io/your-repo-name/).
+Access Your App: GitHub will provide a live URL (e.g.,(https://github.com/furgus-crash/gps-lake-depth/).
 
 📲 Adding to iPhone Home Screen (iOS Safari)
 
