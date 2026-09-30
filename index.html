@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="MN Ice Depth">
-  <title>MN Ice Fishing Bathymetry & Navigator</title>
+  <meta name="apple-mobile-web-app-title" content="Lake Depth">
+  <title>MN Lake Depth Navigator</title>
 
   <!-- Leaflet CSS for Map Rendering -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -20,7 +20,7 @@
       canvas.height = 512;
       const ctx = canvas.getContext('2d');
 
-      // Background Gradient
+      // Background Gradient (Dark Navy to Deep Lake Blue)
       const grad = ctx.createLinearGradient(0, 0, 0, 512);
       grad.addColorStop(0, '#0f172a');
       grad.addColorStop(1, '#0284c7');
@@ -29,29 +29,36 @@
       ctx.roundRect(0, 0, 512, 512, 100);
       ctx.fill();
 
-      // Outer Ring
+      // Outer Precision Ring
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 16;
       ctx.beginPath();
       ctx.arc(256, 256, 180, 0, 2 * Math.PI);
       ctx.stroke();
 
-      // Compass North Arrow
+      // Stylized "MN" Branding Header
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '900 48px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('MN', 256, 125);
+
+      // Compass North Pointer
       ctx.fillStyle = '#ef4444';
       ctx.beginPath();
-      ctx.moveTo(256, 96);
-      ctx.lineTo(290, 256);
-      ctx.lineTo(256, 230);
-      ctx.lineTo(222, 256);
+      ctx.moveTo(256, 160);
+      ctx.lineTo(286, 260);
+      ctx.lineTo(256, 238);
+      ctx.lineTo(226, 260);
       ctx.closePath();
       ctx.fill();
 
-      // Fish Silhouette / Depth Symbol
+      // Depth Reading ("24'")
       ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 110px -apple-system, sans-serif';
+      ctx.font = 'bold 110px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('24\'', 256, 330);
+      ctx.fillText("24'", 256, 340);
 
       const iconDataUrl = canvas.toDataURL('image/png');
 
@@ -69,8 +76,8 @@
 
       // 3. Inject Web App Manifest
       const manifestObj = {
-        name: "MN Ice Fishing Depth Navigator",
-        short_name: "MN Ice Depth",
+        name: "MN Lake Depth Navigator",
+        short_name: "Lake Depth",
         start_url: "./",
         display: "standalone",
         background_color: "#0f172a",
@@ -284,7 +291,7 @@
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-      <button class="btn btn-success" onclick="logHole()">LOG HOLE</button>
+      <button class="btn btn-success" onclick="logHole()">LOG SPOT</button>
       <button class="btn btn-secondary" onclick="openSettings()">SETTINGS</button>
     </div>
   </div>
@@ -297,7 +304,7 @@
       <label class="stat-label">Winter Water Level Drawdown (ft):</label>
       <input type="number" id="drawdown-input" class="input-field" value="1.0" step="0.5" style="margin: 6px 0 16px 0;" onchange="updateDrawdown()">
 
-      <label class="stat-label">Simulation Mode (Test Off-Ice):</label>
+      <label class="stat-label">Simulation Mode (Test Off-Water):</label>
       <select id="sim-select" class="input-field" style="margin: 6px 0 16px 0;" onchange="toggleSimulation()">
         <option value="off">Off (Use Live GPS)</option>
         <option value="mille_lacs">Mille Lacs Lake (28ft Structure)</option>
@@ -305,10 +312,10 @@
         <option value="lotw">Lake of the Woods</option>
       </select>
 
-      <h4 style="color: #cbd5e1; margin-bottom: 6px;">Saved Holes</h4>
+      <h4 style="color: #cbd5e1; margin-bottom: 6px;">Saved Spots</h4>
       <ul id="hole-list" class="hole-list"></ul>
       
-      <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="exportHoles()">EXPORT HOLES (CSV)</button>
+      <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="exportHoles()">EXPORT SPOTS (CSV)</button>
       <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeSettings()">CLOSE</button>
     </div>
   </div>
@@ -325,7 +332,7 @@
     let targetCoords = null;
     let drawdownOffset = 1.0;
     let isSimulating = false;
-    let savedHoles = JSON.parse(localStorage.getItem('mn_ice_holes') || '[]');
+    let savedHoles = JSON.parse(localStorage.getItem('mn_lake_spots') || '[]');
 
     // Initialize Map on Load
     window.onload = function() {
@@ -463,7 +470,6 @@
       document.getElementById('target-depth-display').innerHTML = `${targetDepth} <span class="stat-unit">ft</span>`;
 
       // Calculate sample offset for target simulation / location finding
-      // Simulate finding contour 120ft East-Northeast of current spot
       const targetLat = currentLat + 0.0003;
       const targetLon = currentLon + 0.0004;
       targetCoords = [targetLat, targetLon];
@@ -526,7 +532,7 @@
       return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
     }
 
-    // Hole Logging & Modal Handlers
+    // Spot Logging & Modal Handlers
     function logHole() {
       const depthText = document.getElementById('current-depth').innerText;
       const hole = {
@@ -538,8 +544,8 @@
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       savedHoles.push(hole);
-      localStorage.setItem('mn_ice_holes', JSON.stringify(savedHoles));
-      alert(`Hole Logged: ${hole.lake} (${hole.depth})`);
+      localStorage.setItem('mn_lake_spots', JSON.stringify(savedHoles));
+      alert(`Spot Logged: ${hole.lake} (${hole.depth})`);
     }
 
     function openSettings() {
@@ -559,7 +565,7 @@
             <small style="color:#64748b;">${h.time} (${h.lat.toFixed(4)}, ${h.lon.toFixed(4)})</small>
           </div>
         </li>
-      `).join('') || '<div style="color:#64748b;">No holes logged yet.</div>';
+      `).join('') || '<div style="color:#64748b;">No spots logged yet.</div>';
     }
 
     function exportHoles() {
@@ -568,7 +574,7 @@
       const blob = new Blob([csv], { type: 'text/csv' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'mn_ice_holes.csv';
+      a.download = 'mn_lake_spots.csv';
       a.click();
     }
 
