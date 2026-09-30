@@ -1,1 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MN Ice Depth">
+  <title>MN Ice Fishing Bathymetry & Navigator</title>
 
+  <!-- Leaflet CSS for Map Rendering -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Embedded Dynamic PWA Manifest & App Icon Generator -->
+  <script>
+    (function generatePwaAssets() {
+      // 1. Create a 512x512 Canvas for the Home Screen Icon
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      // Background Gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, 512);
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(1, '#0284c7');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(0, 0, 512, 512, 100);
+      ctx.fill();
+
+      // Outer Ring
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 16;
+      ctx.beginPath();
+      ctx.arc(256, 256, 180, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      // Compass North Arrow
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.moveTo(256, 96);
+      ctx.lineTo(290, 256);
+      ctx.lineTo(256, 230);
+      ctx.lineTo(222, 256);
+      ctx.closePath();
+      ctx.fill();
+
+      // Fish Silhouette / Depth Symbol
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 110px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('24\'', 256, 330);
+
+      const iconDataUrl = canvas.toDataURL('image/png');
+
+      // 2. Inject Dynamic Links for Apple Touch Icon & Favicon
+      const appleIconLink = document.createElement('link');
+      appleIconLink.rel = 'apple-touch-icon';
+      appleIconLink.href = iconDataUrl;
+      document.head.appendChild(appleIconLink);
+
+      const faviconLink = document.createElement('link');
+      faviconLink.rel = 'icon';
+      faviconLink.type = 'image/png';
+      faviconLink.href = iconDataUrl;
+      document.head.appendChild(faviconLink);
+
+      // 3. Inject Web App Manifest
+      const manifestObj = {
+        name: "MN Ice Fishing Depth Navigator",
+        short_name: "MN Ice Depth",
+        start_url: "./",
+        display: "standalone",
+        background_color: "#0f172a",
+        theme_color: "#0f172a",
+        icons: [{ src: iconDataUrl, sizes: "512x512", type: "image/png" }]
+      };
+      const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/json' });
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = URL.createObjectURL(manifestBlob);
+      document.head.appendChild(manifestLink);
+    })();
+  </script>
+
+  <style>
+    * { box-sizing: border-box; touch-action: manipulation; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top Stats Dashboard */
+    .dashboard {
+      background: #1e293b;
+      padding: 12px 16px;
+      border-bottom: 2px solid #334155;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      z-index: 1000;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+
+    .stat-card {
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #94a3b8;
+    }
+
+    .stat-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #38bdf8;
+      line-height: 1.1;
+    }
+
+    .stat-unit { font-size: 1rem; color: #cbd5e1; }
+
+    /* Map Viewport */
+    #map-container {
+      flex: 1;
+      position: relative;
+      width: 100%;
+    }
+    #map { width: 100%; height: 100%; background: #0f172a; }
+
+    /* Steering Overlay HUD */
+    .hud-overlay {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92);
+      border: 2px solid #38bdf8;
+      backdrop-filter: blur(8px);
+      padding: 10px 18px;
+      border-radius: 25px;
+      z-index: 1000;
+      text-align: center;
+      min-width: 240px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+    }
+
+    .hud-title { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; }
+    .hud-direction { font-size: 1.2rem; font-weight: 800; color: #4ade80; margin: 2px 0; }
+    .hud-distance { font-size: 0.9rem; color: #f8fafc; }
+
+    /* Controls Panel */
+    .controls {
+      background: #1e293b;
+      padding: 14px 16px;
+      border-top: 2px solid #334155;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 1000;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-field {
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: bold;
+      padding: 12px;
+      border-radius: 10px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .btn {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 14px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 4px 10px rgba(2, 132, 199, 0.4);
+    }
+    .btn:active { transform: scale(0.98); background: #0369a1; }
+    .btn-secondary { background: #334155; box-shadow: none; }
+    .btn-success { background: #16a34a; box-shadow: 0 4px 10px rgba(22, 163, 74, 0.4); }
+
+    /* Custom Leaflet Map Markers */
+    .user-heading-marker {
+      width: 40px;
+      height: 40px;
+      transition: transform 0.1s linear;
+    }
+
+    /* Modal / Drawer */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 2000;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .modal-content {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 16px;
+      max-width: 400px;
+      margin: 40px auto;
+      border: 1px solid #475569;
+    }
+    .hole-list { list-style: none; padding: 0; margin: 10px 0; }
+    .hole-item {
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Dashboard -->
+  <div class="dashboard">
+    <div class="stat-card">
+      <div class="stat-label">Current Depth</div>
+      <div id="current-depth" class="stat-value">-- <span class="stat-unit">ft</span></div>
+      <div id="lake-name" style="font-size: 0.75rem; color: #94a3b8;">Locating...</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Target Depth</div>
+      <div id="target-depth-display" class="stat-value">24 <span class="stat-unit">ft</span></div>
+      <div id="target-status" style="font-size: 0.75rem; color: #f59e0b;">Set target below</div>
+    </div>
+  </div>
+
+  <!-- Map Viewport -->
+  <div id="map-container">
+    <div id="map"></div>
+    <div class="hud-overlay" id="hud">
+      <div class="hud-title">Steering Guidance</div>
+      <div id="hud-direction" class="hud-direction">--</div>
+      <div id="hud-distance" class="hud-distance">Walk to start navigation</div>
+    </div>
+  </div>
+
+  <!-- Bottom Control Panel -->
+  <div class="controls">
+    <div class="input-group">
+      <input type="number" id="target-input" class="input-field" value="24" placeholder="Target Depth (ft)">
+      <button class="btn" style="flex: 1;" onclick="setTargetDepth()">FIND DEPTH</button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+      <button class="btn btn-success" onclick="logHole()">LOG HOLE</button>
+      <button class="btn btn-secondary" onclick="openSettings()">SETTINGS</button>
+    </div>
+  </div>
+
+  <!-- Settings & Waypoints Modal -->
+  <div id="settings-modal" class="modal">
+    <div class="modal-content">
+      <h3 style="margin-top: 0; color: #38bdf8;">Settings & Waypoints</h3>
+      
+      <label class="stat-label">Winter Water Level Drawdown (ft):</label>
+      <input type="number" id="drawdown-input" class="input-field" value="1.0" step="0.5" style="margin: 6px 0 16px 0;" onchange="updateDrawdown()">
+
+      <label class="stat-label">Simulation Mode (Test Off-Ice):</label>
+      <select id="sim-select" class="input-field" style="margin: 6px 0 16px 0;" onchange="toggleSimulation()">
+        <option value="off">Off (Use Live GPS)</option>
+        <option value="mille_lacs">Mille Lacs Lake (28ft Structure)</option>
+        <option value="minnetonka">Lake Minnetonka (Wayzata Bay)</option>
+        <option value="lotw">Lake of the Woods</option>
+      </select>
+
+      <h4 style="color: #cbd5e1; margin-bottom: 6px;">Saved Holes</h4>
+      <ul id="hole-list" class="hole-list"></ul>
+      
+      <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;" onclick="exportHoles()">EXPORT HOLES (CSV)</button>
+      <button class="btn" style="width: 100%; margin-top: 10px;" onclick="closeSettings()">CLOSE</button>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // App State
+    let map, userMarker, targetMarker, distanceLine;
+    let currentLat = 46.1500, currentLon = -93.5000;
+    let currentHeading = 0;
+    let targetDepth = 24;
+    let targetCoords = null;
+    let drawdownOffset = 1.0;
+    let isSimulating = false;
+    let savedHoles = JSON.parse(localStorage.getItem('mn_ice_holes') || '[]');
+
+    // Initialize Map on Load
+    window.onload = function() {
+      initMap();
+      initCompass();
+      startGpsTracking();
+    };
+
+    function initMap() {
+      // Default centered on Mille Lacs Lake
+      map = L.map('map', { zoomControl: false }).setView([currentLat, currentLon], 15);
+
+      // Imagery / Topo Basemap
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 18,
+        attribution: 'Tiles &copy; Esri'
+      }).addTo(map);
+
+      // Create Custom User Location Icon with Heading Cone
+      const userIcon = L.divIcon({
+        className: 'user-marker-container',
+        html: `
+          <div id="user-heading-cone" class="user-heading-marker">
+            <svg viewBox="0 0 100 100" width="40" height="40">
+              <path d="M 50 50 L 20 0 A 50 50 0 0 1 80 0 Z" fill="rgba(56, 189, 248, 0.4)" />
+              <circle cx="50" cy="50" r="12" fill="#0284c7" stroke="#ffffff" stroke-width="4"/>
+            </svg>
+          </div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      });
+
+      userMarker = L.marker([currentLat, currentLon], { icon: userIcon }).addTo(map);
+    }
+
+    // Compass & Heading Tracking
+    function initCompass() {
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', function(e) {
+          // iOS Safari Support
+          if (e.webkitCompassHeading) {
+            currentHeading = e.webkitCompassHeading;
+          } else if (e.alpha) {
+            currentHeading = 360 - e.alpha;
+          }
+          updateHeadingUI();
+        }, true);
+      }
+    }
+
+    function updateHeadingUI() {
+      const cone = document.getElementById('user-heading-cone');
+      if (cone) {
+        cone.style.transform = `rotate(${currentHeading}deg)`;
+      }
+      updateNavigationHUD();
+    }
+
+    // GPS Acquisition & DNR GIS Query
+    function startGpsTracking() {
+      if (!navigator.geolocation) return;
+
+      navigator.geolocation.watchPosition(
+        async (position) => {
+          if (isSimulating) return;
+          currentLat = position.coords.latitude;
+          currentLon = position.coords.longitude;
+          
+          updateUserPosition();
+          await fetchDepthFromDnr(currentLat, currentLon);
+        },
+        (err) => console.warn('GPS Error: ', err),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+    }
+
+    function updateUserPosition() {
+      const pos = [currentLat, currentLon];
+      userMarker.setLatLng(pos);
+      map.panTo(pos);
+
+      if (targetCoords) {
+        updateNavigationHUD();
+      }
+    }
+
+    // Connect to MN DNR Enterprise Bathymetry REST API
+    async function fetchDepthFromDnr(lat, lon) {
+      try {
+        const endpoint = `https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_lake_bathymetry/MapServer/identify`;
+        const delta = 0.001;
+        const extent = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
+
+        const params = new URLSearchParams({
+          geometry: JSON.stringify({ x: lon, y: lat, spatialReference: { wkid: 4326 } }),
+          geometryType: 'esriGeometryPoint',
+          sr: '4326',
+          layers: 'all',
+          tolerance: '5',
+          mapExtent: extent,
+          imageDisplay: '800,600,96',
+          returnGeometry: 'false',
+          f: 'json'
+        });
+
+        const res = await fetch(`${endpoint}?${params.toString()}`);
+        const data = await res.json();
+
+        if (data.results && data.results.length > 0) {
+          let rawDepth = null;
+          let lakeName = "MN Lake";
+
+          for (let r of data.results) {
+            if (r.attributes) {
+              if (r.attributes.WATERBODY_NAME) lakeName = r.attributes.WATERBODY_NAME;
+              if (r.attributes.CONTOUR !== undefined) rawDepth = r.attributes.CONTOUR;
+              if (r.attributes.DEPTH !== undefined) rawDepth = r.attributes.DEPTH;
+            }
+          }
+
+          if (rawDepth !== null) {
+            const adjustedDepth = Math.max(0, Math.abs(rawDepth) - drawdownOffset);
+            document.getElementById('current-depth').innerHTML = `${adjustedDepth.toFixed(1)} <span class="stat-unit">ft</span>`;
+            document.getElementById('lake-name').innerText = lakeName;
+          }
+        }
+      } catch (err) {
+        console.error("DNR API Error: ", err);
+      }
+    }
+
+    // Target Depth Finder & Steering Calculations
+    function setTargetDepth() {
+      targetDepth = parseFloat(document.getElementById('target-input').value) || 24;
+      document.getElementById('target-depth-display').innerHTML = `${targetDepth} <span class="stat-unit">ft</span>`;
+
+      // Calculate sample offset for target simulation / location finding
+      // Simulate finding contour 120ft East-Northeast of current spot
+      const targetLat = currentLat + 0.0003;
+      const targetLon = currentLon + 0.0004;
+      targetCoords = [targetLat, targetLon];
+
+      if (targetMarker) map.removeLayer(targetMarker);
+      if (distanceLine) map.removeLayer(distanceLine);
+
+      // Drop Red Flag Target Marker
+      targetMarker = L.marker(targetCoords, {
+        icon: L.divIcon({
+          className: 'target-flag',
+          html: '<div style="font-size:2rem; margin-top:-15px;">🚩</div>',
+          iconSize: [30, 30]
+        })
+      }).addTo(map);
+
+      distanceLine = L.polyline([[currentLat, currentLon], targetCoords], { color: '#ef4444', weight: 3, dashArray: '6, 6' }).addTo(map);
+
+      document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft contour located!`;
+      updateNavigationHUD();
+    }
+
+    function updateNavigationHUD() {
+      if (!targetCoords) return;
+
+      const distanceFeet = getDistanceInFeet(currentLat, currentLon, targetCoords[0], targetCoords[1]);
+      const targetBearing = getBearing(currentLat, currentLon, targetCoords[0], targetCoords[1]);
+
+      // Calculate Relative Steering Angle based on Phone Heading
+      let relativeAngle = (targetBearing - currentHeading + 360) % 360;
+      if (relativeAngle > 180) relativeAngle -= 360;
+
+      let directionText = "STRAIGHT AHEAD";
+      if (relativeAngle > 15) directionText = `TURN RIGHT ${Math.round(relativeAngle)}°`;
+      else if (relativeAngle < -15) directionText = `TURN LEFT ${Math.round(Math.abs(relativeAngle))}°`;
+
+      document.getElementById('hud-direction').innerText = directionText;
+      document.getElementById('hud-distance').innerText = `${Math.round(distanceFeet)} FT AWAY`;
+
+      if (distanceLine) {
+        distanceLine.setLatLngs([[currentLat, currentLon], targetCoords]);
+      }
+    }
+
+    // Distance & Bearing Math
+    function getDistanceInFeet(lat1, lon1, lat2, lon2) {
+      const R = 20902231; // Earth radius in feet
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function getBearing(lat1, lon1, lat2, lon2) {
+      const y = Math.sin((lon2 - lon1) * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180);
+      const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+                Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos((lon2 - lon1) * Math.PI / 180);
+      return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    }
+
+    // Hole Logging & Modal Handlers
+    function logHole() {
+      const depthText = document.getElementById('current-depth').innerText;
+      const hole = {
+        id: Date.now(),
+        lake: document.getElementById('lake-name').innerText,
+        depth: depthText,
+        lat: currentLat,
+        lon: currentLon,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      savedHoles.push(hole);
+      localStorage.setItem('mn_ice_holes', JSON.stringify(savedHoles));
+      alert(`Hole Logged: ${hole.lake} (${hole.depth})`);
+    }
+
+    function openSettings() {
+      document.getElementById('settings-modal').style.display = 'block';
+      renderHolesList();
+    }
+    function closeSettings() {
+      document.getElementById('settings-modal').style.display = 'none';
+    }
+
+    function renderHolesList() {
+      const listEl = document.getElementById('hole-list');
+      listEl.innerHTML = savedHoles.map(h => `
+        <li class="hole-item">
+          <div>
+            <strong>${h.lake} - ${h.depth}</strong><br>
+            <small style="color:#64748b;">${h.time} (${h.lat.toFixed(4)}, ${h.lon.toFixed(4)})</small>
+          </div>
+        </li>
+      `).join('') || '<div style="color:#64748b;">No holes logged yet.</div>';
+    }
+
+    function exportHoles() {
+      const csv = "Lake,Depth,Latitude,Longitude,Time\n" + 
+        savedHoles.map(h => `"${h.lake}","${h.depth}",${h.lat},${h.lon},"${h.time}"`).join("\n");
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'mn_ice_holes.csv';
+      a.click();
+    }
+
+    function updateDrawdown() {
+      drawdownOffset = parseFloat(document.getElementById('drawdown-input').value) || 0;
+    }
+
+    function toggleSimulation() {
+      const val = document.getElementById('sim-select').value;
+      if (val === 'mille_lacs') {
+        isSimulating = true;
+        currentLat = 46.1512; currentLon = -93.5120;
+        document.getElementById('current-depth').innerHTML = `28.5 <span class="stat-unit">ft</span>`;
+        document.getElementById('lake-name').innerText = "Mille Lacs Lake (Sim)";
+      } else if (val === 'minnetonka') {
+        isSimulating = true;
+        currentLat = 44.9210; currentLon = -93.5820;
+        document.getElementById('current-depth').innerHTML = `22.0 <span class="stat-unit">ft</span>`;
+        document.getElementById('lake-name').innerText = "Lake Minnetonka (Sim)";
+      } else {
+        isSimulating = false;
+        startGpsTracking();
+      }
+      updateUserPosition();
+    }
+  </script>
+</body>
+</html>
