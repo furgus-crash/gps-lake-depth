@@ -153,20 +153,31 @@
       top: 12px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.92);
+      background: rgba(15, 23, 42, 0.94);
       border: 2px solid #38bdf8;
       backdrop-filter: blur(8px);
-      padding: 10px 18px;
-      border-radius: 25px;
+      padding: 10px 16px;
+      border-radius: 20px;
       z-index: 1000;
       text-align: center;
-      min-width: 240px;
+      width: 88%;
+      max-width: 340px;
       box-shadow: 0 6px 20px rgba(0,0,0,0.6);
     }
 
-    .hud-title { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; }
-    .hud-direction { font-size: 1.2rem; font-weight: 800; color: #4ade80; margin: 2px 0; }
-    .hud-distance { font-size: 0.9rem; color: #f8fafc; }
+    .hud-meta-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 6px;
+      margin-bottom: 6px;
+    }
+
+    .hud-direction { font-size: 1.25rem; font-weight: 800; color: #4ade80; margin: 2px 0; }
+    .hud-distance { font-size: 0.95rem; color: #f8fafc; font-weight: 700; }
 
     /* Controls Panel */
     .controls {
@@ -220,8 +231,8 @@
 
     /* Custom Leaflet Map Markers */
     .user-heading-marker {
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       transition: transform 0.1s linear;
     }
 
@@ -308,10 +319,15 @@
   <!-- Map Viewport -->
   <div id="map-container">
     <div id="map"></div>
+    
+    <!-- Steering & Compass Guidance HUD -->
     <div class="hud-overlay" id="hud">
-      <div class="hud-title">Steering Guidance</div>
+      <div class="hud-meta-row">
+        <div>FACING: <span id="hud-facing" style="color: #38bdf8; font-weight: bold;">0° N</span></div>
+        <div>TARGET AT: <span id="hud-target-bearing" style="color: #f59e0b; font-weight: bold;">--</span></div>
+      </div>
       <div id="hud-direction" class="hud-direction">--</div>
-      <div id="hud-distance" class="hud-distance">Walk to start navigation</div>
+      <div id="hud-distance" class="hud-distance">Enter depth & tap FIND DEPTH</div>
     </div>
   </div>
 
@@ -346,12 +362,12 @@
       <label class="stat-label">Winter Water Level Drawdown (ft):</label>
       <input type="number" id="drawdown-input" class="input-field" value="1.0" step="0.5" style="margin: 6px 0 16px 0;" onchange="updateDrawdown()">
 
-      <label class="stat-label">Simulation Mode (Test Off-Water):</label>
+      <label class="stat-label">Simulation Mode (Test Locations):</label>
       <select id="sim-select" class="input-field" style="margin: 6px 0 16px 0;" onchange="toggleSimulation()">
         <option value="off">Off (Use Live GPS)</option>
+        <option value="nokomis">Lake Nokomis (Minneapolis)</option>
         <option value="mille_lacs">Mille Lacs Lake (28ft Structure)</option>
         <option value="minnetonka">Lake Minnetonka (Wayzata Bay)</option>
-        <option value="lotw">Lake of the Woods</option>
       </select>
 
       <h4 style="color: #cbd5e1; margin-bottom: 6px;">Saved Spots</h4>
@@ -367,11 +383,11 @@
 
   <script>
     // App State
-    let map, userMarker, targetMarker, distanceLine;
-    let currentLat = 46.1500, currentLon = -93.5000;
+    let map, userMarker, targetMarker, headingLine;
+    let currentLat = 44.9085, currentLon = -93.2425; // Default: Lake Nokomis
     let currentHeading = 0;
     let targetDepth = 24;
-    let targetCoords = null;
+    let targetCoords = null; // Fixed coordinates once set
     let drawdownOffset = 1.0;
     let isSimulating = false;
     let currentLakeName = "Unknown";
@@ -386,40 +402,54 @@
     };
 
     function initMap() {
-      map = L.map('map', { zoomControl: false }).setView([currentLat, currentLon], 15);
+      map = L.map('map', { zoomControl: false }).setView([currentLat, currentLon], 16);
 
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 18,
         attribution: 'Tiles &copy; Esri'
       }).addTo(map);
 
+      // Blue User Dot with Rotating Blue Cone
       const userIcon = L.divIcon({
         className: 'user-marker-container',
         html: `
           <div id="user-heading-cone" class="user-heading-marker">
-            <svg viewBox="0 0 100 100" width="40" height="40">
-              <path d="M 50 50 L 20 0 A 50 50 0 0 1 80 0 Z" fill="rgba(56, 189, 248, 0.4)" />
+            <svg viewBox="0 0 100 100" width="44" height="44">
+              <path d="M 50 50 L 15 0 A 50 50 0 0 1 85 0 Z" fill="rgba(56, 189, 248, 0.6)" />
               <circle cx="50" cy="50" r="12" fill="#0284c7" stroke="#ffffff" stroke-width="4"/>
             </svg>
           </div>`,
-        iconSize: [40, 40],
-        iconAnchor: [20, 20]
+        iconSize: [44, 44],
+        iconAnchor: [22, 22]
       });
 
       userMarker = L.marker([currentLat, currentLon], { icon: userIcon }).addTo(map);
+
+      // Red Dotted Sight Line representing Phone Heading Direction
+      headingLine = L.polyline([], {
+        color: '#ef4444',
+        weight: 4,
+        dashArray: '8, 8',
+        opacity: 0.9
+      }).addTo(map);
     }
 
     function initCompass() {
       if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', function(e) {
-          if (e.webkitCompassHeading) {
+          if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
             currentHeading = e.webkitCompassHeading;
-          } else if (e.alpha) {
-            currentHeading = 360 - e.alpha;
+          } else if (e.alpha !== undefined && e.alpha !== null) {
+            currentHeading = (360 - e.alpha) % 360;
           }
           updateHeadingUI();
         }, true);
       }
+    }
+
+    function getCardinal(deg) {
+      const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      return dirs[Math.round(deg / 45) % 8];
     }
 
     function updateHeadingUI() {
@@ -427,7 +457,31 @@
       if (cone) {
         cone.style.transform = `rotate(${currentHeading}deg)`;
       }
+      document.getElementById('hud-facing').innerText = `${Math.round(currentHeading)}° ${getCardinal(currentHeading)}`;
+      
+      updateHeadingLine();
       updateNavigationHUD();
+    }
+
+    // Projects a point 600ft ahead in the direction the phone is facing
+    function updateHeadingLine() {
+      if (!headingLine) return;
+      const rayEndpoint = projectPoint(currentLat, currentLon, currentHeading, 600);
+      headingLine.setLatLngs([[currentLat, currentLon], rayEndpoint]);
+    }
+
+    function projectPoint(lat, lon, bearingDeg, distanceFeet) {
+      const R = 20902231; // Earth's radius in feet
+      const rad = Math.PI / 180;
+      const lat1 = lat * rad;
+      const lon1 = lon * rad;
+      const brng = bearingDeg * rad;
+      const d = distanceFeet / R;
+
+      const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng));
+      const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+
+      return [lat2 / rad, lon2 / rad];
     }
 
     function startGpsTracking() {
@@ -452,12 +506,11 @@
       userMarker.setLatLng(pos);
       map.panTo(pos);
 
-      if (targetCoords) {
-        updateNavigationHUD();
-      }
+      updateHeadingLine();
+      updateNavigationHUD();
     }
 
-    // Connect to MN DNR Enterprise Bathymetry REST API
+    // Connect to MN DNR Bathymetry API
     async function fetchDepthFromDnr(lat, lon) {
       try {
         const endpoint = `https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_lake_bathymetry/MapServer/identify`;
@@ -506,7 +559,6 @@
           }
         }
 
-        // ON LAND OR UNMAPPED
         document.getElementById('current-depth').innerHTML = `<span style="font-size:1.5rem; color:#ef4444;">ON LAND</span>`;
         document.getElementById('lake-name').innerText = "Not on a Mapped Lake";
         currentLakeName = "Not on a Lake";
@@ -517,22 +569,22 @@
       }
     }
 
-    // Target Depth Finder & Proximity Query
+    // Set Fixed Target Spot
     async function setTargetDepth() {
       targetDepth = parseFloat(document.getElementById('target-input').value) || 24;
       document.getElementById('target-depth-display').innerHTML = `${targetDepth} <span class="stat-unit">ft</span>`;
-
       document.getElementById('target-status').innerText = "Searching nearby bathymetry...";
 
       const isOnLake = await fetchDepthFromDnr(currentLat, currentLon);
 
-      const offsetLat = currentLat + (isOnLake ? 0.0003 : 0.0012);
-      const offsetLon = currentLon + (isOnLake ? 0.0004 : 0.0015);
+      // Fix target coordinates relative to initial search
+      const offsetLat = currentLat + (isOnLake ? 0.0004 : 0.0012);
+      const offsetLon = currentLon + (isOnLake ? 0.0005 : 0.0015);
       targetCoords = [offsetLat, offsetLon];
 
       if (targetMarker) map.removeLayer(targetMarker);
-      if (distanceLine) map.removeLayer(distanceLine);
 
+      // Red Target Marker stays fixed on map
       targetMarker = L.marker(targetCoords, {
         icon: L.divIcon({
           className: 'target-flag',
@@ -541,12 +593,10 @@
         })
       }).addTo(map);
 
-      distanceLine = L.polyline([[currentLat, currentLon], targetCoords], { color: '#ef4444', weight: 3, dashArray: '6, 6' }).addTo(map);
-
       if (isOnLake) {
-        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft contour located!`;
+        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft spot pinned!`;
       } else {
-        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft spot on lake located!`;
+        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft spot on lake pinned!`;
       }
 
       updateNavigationHUD();
@@ -558,41 +608,38 @@
       const distanceFeet = getDistanceInFeet(currentLat, currentLon, targetCoords[0], targetCoords[1]);
       const targetBearing = getBearing(currentLat, currentLon, targetCoords[0], targetCoords[1]);
 
+      document.getElementById('hud-target-bearing').innerText = `${Math.round(targetBearing)}° ${getCardinal(targetBearing)}`;
+
       let relativeAngle = (targetBearing - currentHeading + 360) % 360;
       if (relativeAngle > 180) relativeAngle -= 360;
 
-      let directionText = "STRAIGHT AHEAD";
-      if (relativeAngle > 15) directionText = `TURN RIGHT ${Math.round(relativeAngle)}°`;
-      else if (relativeAngle < -15) directionText = `TURN LEFT ${Math.round(Math.abs(relativeAngle))}°`;
-
-      document.getElementById('hud-direction').innerText = directionText;
-      document.getElementById('hud-distance').innerText = `${Math.round(distanceFeet)} FT TO TARGET`;
-
-      if (distanceLine) {
-        distanceLine.setLatLngs([[currentLat, currentLon], targetCoords]);
+      let directionText = "🎯 ALIGNED - WALK STRAIGHT!";
+      if (relativeAngle > 8) {
+        directionText = `TURN RIGHT ${Math.round(relativeAngle)}°`;
+      } else if (relativeAngle < -8) {
+        directionText = `TURN LEFT ${Math.round(Math.abs(relativeAngle))}°`;
       }
+
+      document.getElementById('hud-direction').innerHTML = directionText;
+      document.getElementById('hud-distance').innerText = `${Math.round(distanceFeet)} FT TO TARGET 🚩`;
     }
 
-    // Open In-App DNR Lake Depth Map Overlay
+    // Open In-App DNR Depth Map Overlay
     function openLakeMap() {
       const overlay = document.getElementById('pdf-viewer-overlay');
       const frame = document.getElementById('pdf-frame');
       const title = document.getElementById('pdf-lake-title');
 
       if (currentDowNumber) {
-        // DNR maps format DOW into 8 digits, e.g., 48000200 or 27013300
         const formattedDow = String(currentDowNumber).padStart(8, '0');
         const pdfUrl = `https://files.dnr.state.mn.us/lakefind/data/lakemaps/${formattedDow}.pdf`;
-        
         title.innerText = `${currentLakeName} Depth Map (DOW #${formattedDow})`;
         frame.src = pdfUrl;
       } else if (currentLakeName && currentLakeName !== "Not on a Lake" && currentLakeName !== "Unknown") {
         title.innerText = `${currentLakeName} Map (Search)`;
         frame.src = `https://www.dnr.state.mn.us/lakefind/index.html`;
       } else {
-        title.innerText = "No Mapped Lake Detected";
-        frame.src = "about:blank";
-        alert("GPS could not find a mapped DNR lake for your current location. Move closer to a lake or try Simulation mode in Settings.");
+        alert("GPS could not find a mapped DNR lake for your location. Select a lake in Settings simulation mode.");
         return;
       }
 
@@ -603,7 +650,7 @@
       const overlay = document.getElementById('pdf-viewer-overlay');
       const frame = document.getElementById('pdf-frame');
       overlay.style.display = 'none';
-      frame.src = "about:blank"; // Reset frame to release memory
+      frame.src = "about:blank";
     }
 
     function getDistanceInFeet(lat1, lon1, lat2, lon2) {
@@ -674,7 +721,14 @@
 
     function toggleSimulation() {
       const val = document.getElementById('sim-select').value;
-      if (val === 'mille_lacs') {
+      if (val === 'nokomis') {
+        isSimulating = true;
+        currentLat = 44.9085; currentLon = -93.2425;
+        currentDowNumber = "27001900";
+        currentLakeName = "Lake Nokomis";
+        document.getElementById('current-depth').innerHTML = `22.5 <span class="stat-unit">ft</span>`;
+        document.getElementById('lake-name').innerText = "Lake Nokomis (Sim)";
+      } else if (val === 'mille_lacs') {
         isSimulating = true;
         currentLat = 46.1512; currentLon = -93.5120;
         currentDowNumber = "48000200";
