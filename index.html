@@ -216,7 +216,7 @@
     .btn:active { transform: scale(0.98); background: #0369a1; }
     .btn-secondary { background: #334155; box-shadow: none; }
     .btn-success { background: #16a34a; box-shadow: 0 4px 10px rgba(22, 163, 74, 0.4); }
-    .btn-fish { background: #eab308; color: #0f172a; box-shadow: 0 4px 10px rgba(234, 179, 8, 0.4); }
+    .btn-map { background: #0284c7; color: #ffffff; border: 1px solid #38bdf8; box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3); }
 
     /* Custom Leaflet Map Markers */
     .user-heading-marker {
@@ -225,7 +225,7 @@
       transition: transform 0.1s linear;
     }
 
-    /* Modal / Drawer */
+    /* Modal / Settings Drawer */
     .modal {
       display: none;
       position: fixed;
@@ -253,6 +253,39 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+
+    /* Full-Screen PDF Depth Map Viewer Overlay */
+    #pdf-viewer-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: #0f172a;
+      z-index: 3000;
+      flex-direction: column;
+    }
+    .pdf-header {
+      background: #1e293b;
+      padding: 12px 16px;
+      border-bottom: 2px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pdf-title {
+      font-size: 1.0rem;
+      font-weight: bold;
+      color: #38bdf8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #pdf-frame {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #ffffff;
     }
   </style>
 </head>
@@ -291,9 +324,18 @@
 
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
       <button class="btn btn-success" onclick="logHole()">LOG SPOT</button>
-      <button id="fish-report-btn" class="btn btn-fish" onclick="openFishReport()">SPECIES</button>
+      <button class="btn btn-map" onclick="openLakeMap()">DEPTH MAP</button>
       <button class="btn btn-secondary" onclick="openSettings()">SETTINGS</button>
     </div>
+  </div>
+
+  <!-- Full Screen DNR Depth Map Viewer Overlay -->
+  <div id="pdf-viewer-overlay">
+    <div class="pdf-header">
+      <div class="pdf-title" id="pdf-lake-title">DNR Depth Map</div>
+      <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="closeLakeMap()">CLOSE MAP</button>
+    </div>
+    <iframe id="pdf-frame" src="about:blank"></iframe>
   </div>
 
   <!-- Settings & Waypoints Modal -->
@@ -419,7 +461,7 @@
     async function fetchDepthFromDnr(lat, lon) {
       try {
         const endpoint = `https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_lake_bathymetry/MapServer/identify`;
-        const delta = 0.001; // Small bounding box around user position
+        const delta = 0.001;
         const extent = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
 
         const params = new URLSearchParams({
@@ -464,7 +506,7 @@
           }
         }
 
-        // NO LAKE FOUND AT CURRENT GPS POSITION (ON LAND)
+        // ON LAND OR UNMAPPED
         document.getElementById('current-depth').innerHTML = `<span style="font-size:1.5rem; color:#ef4444;">ON LAND</span>`;
         document.getElementById('lake-name').innerText = "Not on a Mapped Lake";
         currentLakeName = "Not on a Lake";
@@ -475,17 +517,15 @@
       }
     }
 
-    // Target Depth Finder & Proximity Buffer Query
+    // Target Depth Finder & Proximity Query
     async function setTargetDepth() {
       targetDepth = parseFloat(document.getElementById('target-input').value) || 24;
       document.getElementById('target-depth-display').innerHTML = `${targetDepth} <span class="stat-unit">ft</span>`;
 
       document.getElementById('target-status').innerText = "Searching nearby bathymetry...";
 
-      // Check if on land or on lake
       const isOnLake = await fetchDepthFromDnr(currentLat, currentLon);
 
-      // Perform proximity search to find target contour (offset or nearby)
       const offsetLat = currentLat + (isOnLake ? 0.0003 : 0.0012);
       const offsetLon = currentLon + (isOnLake ? 0.0004 : 0.0015);
       targetCoords = [offsetLat, offsetLon];
@@ -533,18 +573,37 @@
       }
     }
 
-    // Open Official MN DNR LakeFinder Report for Current Lake
-    function openFishReport() {
+    // Open In-App DNR Lake Depth Map Overlay
+    function openLakeMap() {
+      const overlay = document.getElementById('pdf-viewer-overlay');
+      const frame = document.getElementById('pdf-frame');
+      const title = document.getElementById('pdf-lake-title');
+
       if (currentDowNumber) {
-        // Pad DOW to 8 digits if needed
+        // DNR maps format DOW into 8 digits, e.g., 48000200 or 27013300
         const formattedDow = String(currentDowNumber).padStart(8, '0');
-        window.open(`https://www.dnr.state.mn.us/lakefind/showreport.html?dnr_id=${formattedDow}`, '_blank');
+        const pdfUrl = `https://files.dnr.state.mn.us/lakefind/data/lakemaps/${formattedDow}.pdf`;
+        
+        title.innerText = `${currentLakeName} Depth Map (DOW #${formattedDow})`;
+        frame.src = pdfUrl;
       } else if (currentLakeName && currentLakeName !== "Not on a Lake" && currentLakeName !== "Unknown") {
-        const cleanName = encodeURIComponent(currentLakeName.replace(" (Sim)", ""));
-        window.open(`https://www.dnr.state.mn.us/lakefind/index.html?name=${cleanName}`, '_blank');
+        title.innerText = `${currentLakeName} Map (Search)`;
+        frame.src = `https://www.dnr.state.mn.us/lakefind/index.html`;
       } else {
-        window.open(`https://www.dnr.state.mn.us/lakefind/index.html`, '_blank');
+        title.innerText = "No Mapped Lake Detected";
+        frame.src = "about:blank";
+        alert("GPS could not find a mapped DNR lake for your current location. Move closer to a lake or try Simulation mode in Settings.");
+        return;
       }
+
+      overlay.style.display = 'flex';
+    }
+
+    function closeLakeMap() {
+      const overlay = document.getElementById('pdf-viewer-overlay');
+      const frame = document.getElementById('pdf-frame');
+      overlay.style.display = 'none';
+      frame.src = "about:blank"; // Reset frame to release memory
     }
 
     function getDistanceInFeet(lat1, lon1, lat2, lon2) {
