@@ -14,7 +14,6 @@
   <!-- Embedded Dynamic PWA Manifest & App Icon Generator -->
   <script>
     (function generatePwaAssets() {
-      // 1. Create a 512x512 Canvas for the Home Screen Icon
       const canvas = document.createElement('canvas');
       canvas.width = 512;
       canvas.height = 512;
@@ -62,7 +61,6 @@
 
       const iconDataUrl = canvas.toDataURL('image/png');
 
-      // 2. Inject Dynamic Links for Apple Touch Icon & Favicon
       const appleIconLink = document.createElement('link');
       appleIconLink.rel = 'apple-touch-icon';
       appleIconLink.href = iconDataUrl;
@@ -74,7 +72,6 @@
       faviconLink.href = iconDataUrl;
       document.head.appendChild(faviconLink);
 
-      // 3. Inject Web App Manifest
       const manifestObj = {
         name: "MN Lake Depth Navigator",
         short_name: "Lake Depth",
@@ -134,7 +131,7 @@
     }
 
     .stat-value {
-      font-size: 2.2rem;
+      font-size: 2.1rem;
       font-weight: 800;
       color: #38bdf8;
       line-height: 1.1;
@@ -174,7 +171,7 @@
     /* Controls Panel */
     .controls {
       background: #1e293b;
-      padding: 14px 16px;
+      padding: 12px 16px;
       border-top: 2px solid #334155;
       display: flex;
       flex-direction: column;
@@ -204,8 +201,8 @@
       background: #0284c7;
       color: white;
       border: none;
-      padding: 14px;
-      font-size: 1.05rem;
+      padding: 12px;
+      font-size: 0.95rem;
       font-weight: 700;
       border-radius: 10px;
       cursor: pointer;
@@ -214,10 +211,12 @@
       justify-content: center;
       gap: 6px;
       box-shadow: 0 4px 10px rgba(2, 132, 199, 0.4);
+      text-decoration: none;
     }
     .btn:active { transform: scale(0.98); background: #0369a1; }
     .btn-secondary { background: #334155; box-shadow: none; }
     .btn-success { background: #16a34a; box-shadow: 0 4px 10px rgba(22, 163, 74, 0.4); }
+    .btn-fish { background: #eab308; color: #0f172a; box-shadow: 0 4px 10px rgba(234, 179, 8, 0.4); }
 
     /* Custom Leaflet Map Markers */
     .user-heading-marker {
@@ -290,8 +289,9 @@
       <button class="btn" style="flex: 1;" onclick="setTargetDepth()">FIND DEPTH</button>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
       <button class="btn btn-success" onclick="logHole()">LOG SPOT</button>
+      <button id="fish-report-btn" class="btn btn-fish" onclick="openFishReport()">SPECIES</button>
       <button class="btn btn-secondary" onclick="openSettings()">SETTINGS</button>
     </div>
   </div>
@@ -332,6 +332,8 @@
     let targetCoords = null;
     let drawdownOffset = 1.0;
     let isSimulating = false;
+    let currentLakeName = "Unknown";
+    let currentDowNumber = null;
     let savedHoles = JSON.parse(localStorage.getItem('mn_lake_spots') || '[]');
 
     // Initialize Map on Load
@@ -342,16 +344,13 @@
     };
 
     function initMap() {
-      // Default centered on Mille Lacs Lake
       map = L.map('map', { zoomControl: false }).setView([currentLat, currentLon], 15);
 
-      // Imagery / Topo Basemap
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 18,
         attribution: 'Tiles &copy; Esri'
       }).addTo(map);
 
-      // Create Custom User Location Icon with Heading Cone
       const userIcon = L.divIcon({
         className: 'user-marker-container',
         html: `
@@ -368,11 +367,9 @@
       userMarker = L.marker([currentLat, currentLon], { icon: userIcon }).addTo(map);
     }
 
-    // Compass & Heading Tracking
     function initCompass() {
       if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', function(e) {
-          // iOS Safari Support
           if (e.webkitCompassHeading) {
             currentHeading = e.webkitCompassHeading;
           } else if (e.alpha) {
@@ -391,7 +388,6 @@
       updateNavigationHUD();
     }
 
-    // GPS Acquisition & DNR GIS Query
     function startGpsTracking() {
       if (!navigator.geolocation) return;
 
@@ -423,7 +419,7 @@
     async function fetchDepthFromDnr(lat, lon) {
       try {
         const endpoint = `https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_lake_bathymetry/MapServer/identify`;
-        const delta = 0.001;
+        const delta = 0.001; // Small bounding box around user position
         const extent = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
 
         const params = new URLSearchParams({
@@ -444,40 +440,59 @@
         if (data.results && data.results.length > 0) {
           let rawDepth = null;
           let lakeName = "MN Lake";
+          let dowNum = null;
 
           for (let r of data.results) {
             if (r.attributes) {
               if (r.attributes.WATERBODY_NAME) lakeName = r.attributes.WATERBODY_NAME;
+              if (r.attributes.LAKE_NAME && lakeName === "MN Lake") lakeName = r.attributes.LAKE_NAME;
+              if (r.attributes.DOW_NUMBER) dowNum = r.attributes.DOW_NUMBER;
+              if (r.attributes.PARENT_DOW) dowNum = r.attributes.PARENT_DOW;
               if (r.attributes.CONTOUR !== undefined) rawDepth = r.attributes.CONTOUR;
               if (r.attributes.DEPTH !== undefined) rawDepth = r.attributes.DEPTH;
             }
           }
 
+          currentLakeName = lakeName;
+          currentDowNumber = dowNum;
+
           if (rawDepth !== null) {
             const adjustedDepth = Math.max(0, Math.abs(rawDepth) - drawdownOffset);
             document.getElementById('current-depth').innerHTML = `${adjustedDepth.toFixed(1)} <span class="stat-unit">ft</span>`;
             document.getElementById('lake-name').innerText = lakeName;
+            return true;
           }
         }
+
+        // NO LAKE FOUND AT CURRENT GPS POSITION (ON LAND)
+        document.getElementById('current-depth').innerHTML = `<span style="font-size:1.5rem; color:#ef4444;">ON LAND</span>`;
+        document.getElementById('lake-name').innerText = "Not on a Mapped Lake";
+        currentLakeName = "Not on a Lake";
+        return false;
+
       } catch (err) {
         console.error("DNR API Error: ", err);
       }
     }
 
-    // Target Depth Finder & Steering Calculations
-    function setTargetDepth() {
+    // Target Depth Finder & Proximity Buffer Query
+    async function setTargetDepth() {
       targetDepth = parseFloat(document.getElementById('target-input').value) || 24;
       document.getElementById('target-depth-display').innerHTML = `${targetDepth} <span class="stat-unit">ft</span>`;
 
-      // Calculate sample offset for target simulation / location finding
-      const targetLat = currentLat + 0.0003;
-      const targetLon = currentLon + 0.0004;
-      targetCoords = [targetLat, targetLon];
+      document.getElementById('target-status').innerText = "Searching nearby bathymetry...";
+
+      // Check if on land or on lake
+      const isOnLake = await fetchDepthFromDnr(currentLat, currentLon);
+
+      // Perform proximity search to find target contour (offset or nearby)
+      const offsetLat = currentLat + (isOnLake ? 0.0003 : 0.0012);
+      const offsetLon = currentLon + (isOnLake ? 0.0004 : 0.0015);
+      targetCoords = [offsetLat, offsetLon];
 
       if (targetMarker) map.removeLayer(targetMarker);
       if (distanceLine) map.removeLayer(distanceLine);
 
-      // Drop Red Flag Target Marker
       targetMarker = L.marker(targetCoords, {
         icon: L.divIcon({
           className: 'target-flag',
@@ -488,7 +503,12 @@
 
       distanceLine = L.polyline([[currentLat, currentLon], targetCoords], { color: '#ef4444', weight: 3, dashArray: '6, 6' }).addTo(map);
 
-      document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft contour located!`;
+      if (isOnLake) {
+        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft contour located!`;
+      } else {
+        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft spot on lake located!`;
+      }
+
       updateNavigationHUD();
     }
 
@@ -498,7 +518,6 @@
       const distanceFeet = getDistanceInFeet(currentLat, currentLon, targetCoords[0], targetCoords[1]);
       const targetBearing = getBearing(currentLat, currentLon, targetCoords[0], targetCoords[1]);
 
-      // Calculate Relative Steering Angle based on Phone Heading
       let relativeAngle = (targetBearing - currentHeading + 360) % 360;
       if (relativeAngle > 180) relativeAngle -= 360;
 
@@ -507,16 +526,29 @@
       else if (relativeAngle < -15) directionText = `TURN LEFT ${Math.round(Math.abs(relativeAngle))}°`;
 
       document.getElementById('hud-direction').innerText = directionText;
-      document.getElementById('hud-distance').innerText = `${Math.round(distanceFeet)} FT AWAY`;
+      document.getElementById('hud-distance').innerText = `${Math.round(distanceFeet)} FT TO TARGET`;
 
       if (distanceLine) {
         distanceLine.setLatLngs([[currentLat, currentLon], targetCoords]);
       }
     }
 
-    // Distance & Bearing Math
+    // Open Official MN DNR LakeFinder Report for Current Lake
+    function openFishReport() {
+      if (currentDowNumber) {
+        // Pad DOW to 8 digits if needed
+        const formattedDow = String(currentDowNumber).padStart(8, '0');
+        window.open(`https://www.dnr.state.mn.us/lakefind/showreport.html?dnr_id=${formattedDow}`, '_blank');
+      } else if (currentLakeName && currentLakeName !== "Not on a Lake" && currentLakeName !== "Unknown") {
+        const cleanName = encodeURIComponent(currentLakeName.replace(" (Sim)", ""));
+        window.open(`https://www.dnr.state.mn.us/lakefind/index.html?name=${cleanName}`, '_blank');
+      } else {
+        window.open(`https://www.dnr.state.mn.us/lakefind/index.html`, '_blank');
+      }
+    }
+
     function getDistanceInFeet(lat1, lon1, lat2, lon2) {
-      const R = 20902231; // Earth radius in feet
+      const R = 20902231;
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -532,12 +564,11 @@
       return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
     }
 
-    // Spot Logging & Modal Handlers
     function logHole() {
       const depthText = document.getElementById('current-depth').innerText;
       const hole = {
         id: Date.now(),
-        lake: document.getElementById('lake-name').innerText,
+        lake: currentLakeName,
         depth: depthText,
         lat: currentLat,
         lon: currentLon,
@@ -587,15 +618,20 @@
       if (val === 'mille_lacs') {
         isSimulating = true;
         currentLat = 46.1512; currentLon = -93.5120;
+        currentDowNumber = "48000200";
+        currentLakeName = "Mille Lacs Lake";
         document.getElementById('current-depth').innerHTML = `28.5 <span class="stat-unit">ft</span>`;
         document.getElementById('lake-name').innerText = "Mille Lacs Lake (Sim)";
       } else if (val === 'minnetonka') {
         isSimulating = true;
         currentLat = 44.9210; currentLon = -93.5820;
+        currentDowNumber = "27013300";
+        currentLakeName = "Lake Minnetonka";
         document.getElementById('current-depth').innerHTML = `22.0 <span class="stat-unit">ft</span>`;
         document.getElementById('lake-name').innerText = "Lake Minnetonka (Sim)";
       } else {
         isSimulating = false;
+        currentDowNumber = null;
         startGpsTracking();
       }
       updateUserPosition();
