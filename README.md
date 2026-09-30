@@ -30,7 +30,7 @@ Under Build and deployment > Source, select Deploy from a branch.
 
 Choose the main (or master) branch and click Save.
 
-Access Your App: GitHub will provide a live URL (e.g.,(https://github.com/furgus-crash/gps-lake-depth/).
+Access Your App: GitHub will provide a live URL (e.g.,(https://(https://github.com/furgus-crash/gps-lake-depth/blob/main/index.html).
 
 📲 Adding to iPhone Home Screen (iOS Safari)
 
