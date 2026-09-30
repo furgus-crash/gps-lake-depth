@@ -387,7 +387,7 @@
     let currentLat = 44.9085, currentLon = -93.2425; // Default: Lake Nokomis
     let currentHeading = 0;
     let targetDepth = 24;
-    let targetCoords = null; // Fixed coordinates once set
+    let targetCoords = null;
     let drawdownOffset = 1.0;
     let isSimulating = false;
     let currentLakeName = "Unknown";
@@ -463,7 +463,7 @@
       updateNavigationHUD();
     }
 
-    // Projects a point 600ft ahead in the direction the phone is facing
+    // Projects a line 600ft ahead in the direction the phone is pointing
     function updateHeadingLine() {
       if (!headingLine) return;
       const rayEndpoint = projectPoint(currentLat, currentLon, currentHeading, 600);
@@ -569,34 +569,50 @@
       }
     }
 
-    // Set Fixed Target Spot
+    // Auto-Find and Place Draggable Target
     async function setTargetDepth() {
       targetDepth = parseFloat(document.getElementById('target-input').value) || 24;
       document.getElementById('target-depth-display').innerHTML = `${targetDepth} <span class="stat-unit">ft</span>`;
-      document.getElementById('target-status').innerText = "Searching nearby bathymetry...";
+      document.getElementById('target-status').innerText = "Searching bathymetry...";
 
       const isOnLake = await fetchDepthFromDnr(currentLat, currentLon);
 
-      // Fix target coordinates relative to initial search
       const offsetLat = currentLat + (isOnLake ? 0.0004 : 0.0012);
       const offsetLon = currentLon + (isOnLake ? 0.0005 : 0.0015);
       targetCoords = [offsetLat, offsetLon];
 
       if (targetMarker) map.removeLayer(targetMarker);
 
-      // Red Target Marker stays fixed on map
+      // Draggable Red Target Marker 🚩
       targetMarker = L.marker(targetCoords, {
+        draggable: true,
         icon: L.divIcon({
           className: 'target-flag',
-          html: '<div style="font-size:2rem; margin-top:-15px;">🚩</div>',
-          iconSize: [30, 30]
+          html: '<div style="font-size:2.2rem; margin-top:-20px; cursor:grab;">🚩</div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 30]
         })
       }).addTo(map);
 
+      // Real-time HUD update while dragging flag
+      targetMarker.on('drag', function(e) {
+        const latLng = e.target.getLatLng();
+        targetCoords = [latLng.lat, latLng.lng];
+        updateNavigationHUD();
+      });
+
+      // Update status when user finishes dragging flag
+      targetMarker.on('dragend', function(e) {
+        const latLng = e.target.getLatLng();
+        targetCoords = [latLng.lat, latLng.lng];
+        document.getElementById('target-status').innerText = `Custom spot set!`;
+        updateNavigationHUD();
+      });
+
       if (isOnLake) {
-        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft spot pinned!`;
+        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft spot! (Drag 🚩 to adjust)`;
       } else {
-        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft spot on lake pinned!`;
+        document.getElementById('target-status').innerText = `Nearest spot pinned! (Drag 🚩 to adjust)`;
       }
 
       updateNavigationHUD();
