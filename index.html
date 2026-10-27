@@ -257,39 +257,6 @@
       cursor: pointer;
     }
     .hole-item:active { background: #1e293b; border-color: #38bdf8; }
-
-    #pdf-viewer-overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: #0f172a;
-      z-index: 3000;
-      flex-direction: column;
-    }
-    .pdf-header {
-      background: #1e293b;
-      padding: 12px 16px;
-      border-bottom: 2px solid #334155;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .pdf-title {
-      font-size: 0.9rem;
-      font-weight: bold;
-      color: #38bdf8;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 55%;
-    }
-    #pdf-frame {
-      flex: 1;
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: #ffffff;
-    }
   </style>
 </head>
 <body>
@@ -333,23 +300,11 @@
     </div>
   </div>
 
-  <!-- DNR Lake Report & Map Viewer Overlay -->
-  <div id="pdf-viewer-overlay">
-    <div class="pdf-header">
-      <div class="pdf-title" id="pdf-lake-title">DNR Lake Report</div>
-      <div style="display:flex; gap: 6px;">
-        <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.75rem;" onclick="openLakeSelectorModal()">CHANGE LAKE</button>
-        <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.75rem; background:#ef4444;" onclick="closeLakeMap()">CLOSE</button>
-      </div>
-    </div>
-    <iframe id="pdf-frame" src="about:blank"></iframe>
-  </div>
-
-  <!-- Lake Selector Modal (For Planning At Home) -->
+  <!-- Lake Selector Modal (For Planning At Home & Selecting Maps) -->
   <div id="lake-selector-modal" class="modal">
     <div class="modal-content">
-      <h3 style="margin-top: 0; color: #38bdf8;">Select Minnesota Lake</h3>
-      <p style="font-size:0.85rem; color:#94a3b8; margin-top:-6px;">Choose a lake below to view its official DNR depth map and survey report:</p>
+      <h3 style="margin-top: 0; color: #38bdf8;">Select Minnesota Lake Map</h3>
+      <p style="font-size:0.85rem; color:#94a3b8; margin-top:-6px;">Choose a lake below to open its official DNR depth contour map PDF:</p>
       
       <label class="stat-label">Choose from Popular Lakes:</label>
       <select id="lake-preset-select" class="input-field" style="margin: 6px 0 14px 0;" onchange="loadSelectedPresetMap()">
@@ -373,7 +328,7 @@
 
       <div id="nearby-lakes-container" style="margin-top: 16px;">
         <h4 style="color: #cbd5e1; margin-bottom: 8px;">Nearby Lakes to GPS</h4>
-        <div id="nearby-lakes-list"><span style="color:#64748b; font-size:0.85rem;">Searching nearby DNR lakes...</span></div>
+        <div id="nearby-lakes-list"><span style="color:#64748b; font-size:0.85rem;">Querying nearby DNR lakes...</span></div>
       </div>
 
       <button class="btn btn-secondary" style="width: 100%; margin-top: 16px;" onclick="closeLakeSelectorModal()">CANCEL</button>
@@ -660,35 +615,22 @@
       document.getElementById('hud-distance').innerText = `${Math.round(distanceFeet)} FT TO TARGET 🚩`;
     }
 
-    // Opens Official DNR LakeFinder Report inside App Viewer (Guaranteed 100% Valid URL)
+    // Directly opens the official high-resolution DNR Lake Depth Map PDF in a clean browser tab
     function openLakeMap() {
       if (currentDowNumber) {
-        displayDnrReport(currentDowNumber, currentLakeName);
+        launchPdfMap(currentDowNumber);
       } else {
         openLakeSelectorModal();
       }
     }
 
-    function displayDnrReport(dowNumber, lakeName) {
-      const overlay = document.getElementById('pdf-viewer-overlay');
-      const frame = document.getElementById('pdf-frame');
-      const title = document.getElementById('pdf-lake-title');
-
+    function launchPdfMap(dowNumber) {
       const formattedDow = String(dowNumber).padStart(8, '0');
-      // Official DNR LakeFinder Report URL (contains maps, contours, and surveys)
-      const reportUrl = `https://www.dnr.state.mn.us/lakefind/showreport.html?dnr_id=${formattedDow}`;
+      const pdfUrl = `https://files.dnr.state.mn.us/lakefind/data/lakemaps/${formattedDow}.pdf`;
       
-      title.innerText = `${lakeName} (DOW #${formattedDow})`;
-      frame.src = reportUrl;
-      overlay.style.display = 'flex';
+      // Opens the official DNR depth map PDF directly in Safari (bypassing frame security blocks)
+      window.open(pdfUrl, '_blank');
       closeLakeSelectorModal();
-    }
-
-    function closeLakeMap() {
-      const overlay = document.getElementById('pdf-viewer-overlay');
-      const frame = document.getElementById('pdf-frame');
-      overlay.style.display = 'none';
-      frame.src = "about:blank";
     }
 
     function openLakeSelectorModal() {
@@ -703,14 +645,14 @@
       const val = document.getElementById('lake-preset-select').value;
       if (val) {
         const parts = val.split('|');
-        displayDnrReport(parts[0], parts[1]);
+        launchPdfMap(parts[0]);
       }
     }
 
     function loadCustomDowMap() {
       const inputVal = document.getElementById('custom-dow-input').value.trim();
       if (inputVal) {
-        displayDnrReport(inputVal, `Lake DOW #${inputVal}`);
+        launchPdfMap(inputVal);
       }
     }
 
@@ -755,27 +697,27 @@
         const keys = Object.keys(lakesFound);
         if (keys.length > 0) {
           listEl.innerHTML = keys.map(dow => `
-            <div class="hole-item" onclick="displayDnrReport('${dow}', '${lakesFound[dow]}')">
+            <div class="hole-item" onclick="launchPdfMap('${dow}')">
               <div>
                 <strong>${lakesFound[dow]}</strong><br>
                 <small style="color:#64748b;">DOW #${dow}</small>
               </div>
-              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">VIEW REPORT &rsaquo;</span>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN MAP PDF &rsaquo;</span>
             </div>
           `).join('');
         } else {
           listEl.innerHTML = `
-            <div class="hole-item" onclick="displayDnrReport('27003100', 'Bde Maka Ska')">
+            <div class="hole-item" onclick="launchPdfMap('27003100')">
               <div><strong>Bde Maka Ska</strong><br><small style="color:#64748b;">DOW #27003100</small></div>
-              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">VIEW REPORT &rsaquo;</span>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN MAP PDF &rsaquo;</span>
             </div>
-            <div class="hole-item" onclick="displayDnrReport('27001600', 'Lake Harriet')">
+            <div class="hole-item" onclick="launchPdfMap('27001600')">
               <div><strong>Lake Harriet</strong><br><small style="color:#64748b;">DOW #27001600</small></div>
-              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">VIEW REPORT &rsaquo;</span>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN MAP PDF &rsaquo;</span>
             </div>
-            <div class="hole-item" onclick="displayDnrReport('27001900', 'Lake Nokomis')">
+            <div class="hole-item" onclick="launchPdfMap('27001900')">
               <div><strong>Lake Nokomis</strong><br><small style="color:#64748b;">DOW #27001900</small></div>
-              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">VIEW REPORT &rsaquo;</span>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN MAP PDF &rsaquo;</span>
             </div>
           `;
         }
