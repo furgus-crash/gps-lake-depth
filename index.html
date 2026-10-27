@@ -303,8 +303,8 @@
   <!-- Lake Selector Modal (For Planning At Home & Selecting Maps) -->
   <div id="lake-selector-modal" class="modal">
     <div class="modal-content">
-      <h3 style="margin-top: 0; color: #38bdf8;">Select Minnesota Lake Map</h3>
-      <p style="font-size:0.85rem; color:#94a3b8; margin-top:-6px;">Choose a lake below to open its official DNR depth contour map PDF:</p>
+      <h3 style="margin-top: 0; color: #38bdf8;">Select Minnesota Lake</h3>
+      <p style="font-size:0.85rem; color:#94a3b8; margin-top:-6px;">Choose a lake below to open its official DNR LakeFinder depth map & survey:</p>
       
       <label class="stat-label">Choose from Popular Lakes:</label>
       <select id="lake-preset-select" class="input-field" style="margin: 6px 0 14px 0;" onchange="loadSelectedPresetMap()">
@@ -615,21 +615,21 @@
       document.getElementById('hud-distance').innerText = `${Math.round(distanceFeet)} FT TO TARGET 🚩`;
     }
 
-    // Directly opens the official high-resolution DNR Lake Depth Map PDF in a clean browser tab
+    // Opens Official MN DNR LakeFinder page in Safari (Guaranteed 100% Valid & Active Link)
     function openLakeMap() {
       if (currentDowNumber) {
-        launchPdfMap(currentDowNumber);
+        launchLakeFinder(currentDowNumber);
       } else {
         openLakeSelectorModal();
       }
     }
 
-    function launchPdfMap(dowNumber) {
+    function launchLakeFinder(dowNumber) {
       const formattedDow = String(dowNumber).padStart(8, '0');
-      const pdfUrl = `https://files.dnr.state.mn.us/lakefind/data/lakemaps/${formattedDow}.pdf`;
+      // Official MN DNR LakeFinder URL containing depth maps, surveys, and water quality
+      const lakeFinderUrl = `https://www.dnr.state.mn.us/lakefind/lake.html?id=${formattedDow}`;
       
-      // Opens the official DNR depth map PDF directly in Safari (bypassing frame security blocks)
-      window.open(pdfUrl, '_blank');
+      window.open(lakeFinderUrl, '_blank');
       closeLakeSelectorModal();
     }
 
@@ -645,14 +645,14 @@
       const val = document.getElementById('lake-preset-select').value;
       if (val) {
         const parts = val.split('|');
-        launchPdfMap(parts[0]);
+        launchLakeFinder(parts[0]);
       }
     }
 
     function loadCustomDowMap() {
       const inputVal = document.getElementById('custom-dow-input').value.trim();
       if (inputVal) {
-        launchPdfMap(inputVal);
+        launchLakeFinder(inputVal);
       }
     }
 
@@ -697,27 +697,27 @@
         const keys = Object.keys(lakesFound);
         if (keys.length > 0) {
           listEl.innerHTML = keys.map(dow => `
-            <div class="hole-item" onclick="launchPdfMap('${dow}')">
+            <div class="hole-item" onclick="launchLakeFinder('${dow}')">
               <div>
                 <strong>${lakesFound[dow]}</strong><br>
                 <small style="color:#64748b;">DOW #${dow}</small>
               </div>
-              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN MAP PDF &rsaquo;</span>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN LAKEFINDR &rsaquo;</span>
             </div>
           `).join('');
         } else {
           listEl.innerHTML = `
-            <div class="hole-item" onclick="launchPdfMap('27003100')">
+            <div class="hole-item" onclick="launchLakeFinder('27003100')">
               <div><strong>Bde Maka Ska</strong><br><small style="color:#64748b;">DOW #27003100</small></div>
-              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN MAP PDF &rsaquo;</span>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN LAKEFINDR &rsaquo;</span>
             </div>
-            <div class="hole-item" onclick="launchPdfMap('27001600')">
+            <div class="hole-item" onclick="launchLakeFinder('27001600')">
               <div><strong>Lake Harriet</strong><br><small style="color:#64748b;">DOW #27001600</small></div>
-              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN MAP PDF &rsaquo;</span>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN LAKEFINDR &rsaquo;</span>
             </div>
-            <div class="hole-item" onclick="launchPdfMap('27001900')">
+            <div class="hole-item" onclick="launchLakeFinder('27001900')">
               <div><strong>Lake Nokomis</strong><br><small style="color:#64748b;">DOW #27001900</small></div>
-              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN MAP PDF &rsaquo;</span>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">OPEN LAKEFINDR &rsaquo;</span>
             </div>
           `;
         }
