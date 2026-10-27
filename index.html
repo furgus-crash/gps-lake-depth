@@ -19,7 +19,6 @@
       canvas.height = 512;
       const ctx = canvas.getContext('2d');
 
-      // Background Gradient (Dark Navy to Deep Lake Blue)
       const grad = ctx.createLinearGradient(0, 0, 0, 512);
       grad.addColorStop(0, '#0f172a');
       grad.addColorStop(1, '#0284c7');
@@ -28,21 +27,18 @@
       ctx.roundRect(0, 0, 512, 512, 100);
       ctx.fill();
 
-      // Outer Precision Ring
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 16;
       ctx.beginPath();
       ctx.arc(256, 256, 180, 0, 2 * Math.PI);
       ctx.stroke();
 
-      // Stylized "MN" Branding Header
       ctx.fillStyle = '#38bdf8';
       ctx.font = '900 48px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('MN', 256, 125);
 
-      // Compass North Pointer
       ctx.fillStyle = '#ef4444';
       ctx.beginPath();
       ctx.moveTo(256, 160);
@@ -52,7 +48,6 @@
       ctx.closePath();
       ctx.fill();
 
-      // Depth Reading ("24'")
       ctx.fillStyle = '#f8fafc';
       ctx.font = 'bold 110px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
@@ -103,7 +98,6 @@
       overflow: hidden;
     }
 
-    /* Top Stats Dashboard */
     .dashboard {
       background: #1e293b;
       padding: 12px 16px;
@@ -139,7 +133,6 @@
 
     .stat-unit { font-size: 1rem; color: #cbd5e1; }
 
-    /* Map Viewport */
     #map-container {
       flex: 1;
       position: relative;
@@ -147,7 +140,6 @@
     }
     #map { width: 100%; height: 100%; background: #0f172a; }
 
-    /* Steering Overlay HUD */
     .hud-overlay {
       position: absolute;
       top: 12px;
@@ -179,7 +171,6 @@
     .hud-direction { font-size: 1.25rem; font-weight: 800; color: #4ade80; margin: 2px 0; }
     .hud-distance { font-size: 0.95rem; color: #f8fafc; font-weight: 700; }
 
-    /* Controls Panel */
     .controls {
       background: #1e293b;
       padding: 12px 16px;
@@ -229,14 +220,12 @@
     .btn-success { background: #16a34a; box-shadow: 0 4px 10px rgba(22, 163, 74, 0.4); }
     .btn-map { background: #0284c7; color: #ffffff; border: 1px solid #38bdf8; box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3); }
 
-    /* Custom Leaflet Map Markers */
     .user-heading-marker {
       width: 44px;
       height: 44px;
       transition: transform 0.1s linear;
     }
 
-    /* Modal / Settings Drawer */
     .modal {
       display: none;
       position: fixed;
@@ -250,23 +239,25 @@
       background: #1e293b;
       padding: 20px;
       border-radius: 16px;
-      max-width: 400px;
-      margin: 40px auto;
+      max-width: 420px;
+      margin: 20px auto;
       border: 1px solid #475569;
     }
+
     .hole-list { list-style: none; padding: 0; margin: 10px 0; }
     .hole-item {
       background: #0f172a;
       border: 1px solid #334155;
-      padding: 10px;
-      border-radius: 8px;
+      padding: 10px 14px;
+      border-radius: 10px;
       margin-bottom: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      cursor: pointer;
     }
+    .hole-item:active { background: #1e293b; border-color: #38bdf8; }
 
-    /* Full-Screen PDF Depth Map Viewer Overlay */
     #pdf-viewer-overlay {
       display: none;
       position: fixed;
@@ -284,12 +275,13 @@
       align-items: center;
     }
     .pdf-title {
-      font-size: 1.0rem;
+      font-size: 0.95rem;
       font-weight: bold;
       color: #38bdf8;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      max-width: 60%;
     }
     #pdf-frame {
       flex: 1;
@@ -302,7 +294,6 @@
 </head>
 <body>
 
-  <!-- Top Dashboard -->
   <div class="dashboard">
     <div class="stat-card">
       <div class="stat-label">Current Depth</div>
@@ -316,11 +307,9 @@
     </div>
   </div>
 
-  <!-- Map Viewport -->
   <div id="map-container">
     <div id="map"></div>
     
-    <!-- Steering & Compass Guidance HUD -->
     <div class="hud-overlay" id="hud">
       <div class="hud-meta-row">
         <div>FACING: <span id="hud-facing" style="color: #38bdf8; font-weight: bold;">0° N</span></div>
@@ -331,7 +320,6 @@
     </div>
   </div>
 
-  <!-- Bottom Control Panel -->
   <div class="controls">
     <div class="input-group">
       <input type="number" id="target-input" class="input-field" value="24" placeholder="Target Depth (ft)">
@@ -349,9 +337,52 @@
   <div id="pdf-viewer-overlay">
     <div class="pdf-header">
       <div class="pdf-title" id="pdf-lake-title">DNR Depth Map</div>
-      <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem;" onclick="closeLakeMap()">CLOSE MAP</button>
+      <div style="display:flex; gap: 8px;">
+        <button class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.8rem;" onclick="openLakeSelectorModal()">CHANGE LAKE</button>
+        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; background:#ef4444;" onclick="closeLakeMap()">CLOSE</button>
+      </div>
     </div>
     <iframe id="pdf-frame" src="about:blank"></iframe>
+  </div>
+
+  <!-- Lake Selector Modal (For Planning At Home) -->
+  <div id="lake-selector-modal" class="modal">
+    <div class="modal-content">
+      <h3 style="margin-top: 0; color: #38bdf8;">Select Minnesota Lake Map</h3>
+      <p style="font-size:0.85rem; color:#94a3b8; margin-top:-6px;">Choose a lake below to view its official DNR depth contour map PDF:</p>
+      
+      <label class="stat-label">Choose from Popular Lakes:</label>
+      <select id="lake-preset-select" class="input-field" style="margin: 6px 0 14px 0;" onchange="loadSelectedPresetMap()">
+        <option value="">-- Pick a Minnesota Lake --</option>
+        <option value="27003100|Bde Maka Ska">Bde Maka Ska (Minneapolis)</option>
+        <option value="27001600|Lake Harriet">Lake Harriet (Minneapolis)</option>
+        <option value="27001900|Lake Nokomis">Lake Nokomis (Minneapolis)</option>
+        <option value="27013300|Lake Minnetonka">Lake Minnetonka (Hennepin Co)</option>
+        <option value="48000200|Mille Lacs Lake">Mille Lacs Lake (Aitkin/Mille Lacs)</option>
+
+        <option value="18026900|Gull Lake">Gull Lake (Brainerd)</option>
+        <option value="11020300|Leech Lake">Leech Lake (Cass Co)</option>
+        <option value="69069300|Lake Vermilion">Lake Vermilion (St. Louis Co)</option>
+        <option value="39000200|Lake of the Woods">Lake of the Woods</option>
+        <option value="25000100|Lake Pepin">Lake Pepin (Goodhue Co)</option>
+        <option value="62000700|Lake Phalen">Lake Phalen (St. Paul)</option>
+        <option value="82015900|White Bear Lake">White Bear Lake (Ramsey/Washington)</option>
+        <option value="70009100|Prior Lake">Prior Lake (Scott Co)</option>
+      </select>
+
+      <label class="stat-label">Or Enter 8-Digit DNR DOW Number:</label>
+      <div class="input-group" style="margin-top: 6px;">
+        <input type="text" id="custom-dow-input" class="input-field" placeholder="e.g. 27003100">
+        <button class="btn" onclick="loadCustomDowMap()">LOAD</button>
+      </div>
+
+      <div id="nearby-lakes-container" style="margin-top: 16px;">
+        <h4 style="color: #cbd5e1; margin-bottom: 8px;">Nearby Lakes to GPS</h4>
+        <div id="nearby-lakes-list"><span style="color:#64748b; font-size:0.85rem;">Searching nearby DNR lakes...</span></div>
+      </div>
+
+      <button class="btn btn-secondary" style="width: 100%; margin-top: 16px;" onclick="closeLakeSelectorModal()">CANCEL</button>
+    </div>
   </div>
 
   <!-- Settings & Waypoints Modal -->
@@ -365,9 +396,9 @@
       <label class="stat-label">Simulation Mode (Test Locations):</label>
       <select id="sim-select" class="input-field" style="margin: 6px 0 16px 0;" onchange="toggleSimulation()">
         <option value="off">Off (Use Live GPS)</option>
+        <option value="bde_maka_ska">Bde Maka Ska (Minneapolis)</option>
         <option value="nokomis">Lake Nokomis (Minneapolis)</option>
         <option value="mille_lacs">Mille Lacs Lake (28ft Structure)</option>
-        <option value="minnetonka">Lake Minnetonka (Wayzata Bay)</option>
       </select>
 
       <h4 style="color: #cbd5e1; margin-bottom: 6px;">Saved Spots</h4>
@@ -382,9 +413,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // App State
     let map, userMarker, targetMarker, headingLine;
-    let currentLat = 44.9085, currentLon = -93.2425; // Default: Lake Nokomis
+    let currentLat = 44.9450, currentLon = -93.3150; 
     let currentHeading = 0;
     let targetDepth = 24;
     let targetCoords = null;
@@ -394,7 +424,6 @@
     let currentDowNumber = null;
     let savedHoles = JSON.parse(localStorage.getItem('mn_lake_spots') || '[]');
 
-    // Initialize Map on Load
     window.onload = function() {
       initMap();
       initCompass();
@@ -409,7 +438,6 @@
         attribution: 'Tiles &copy; Esri'
       }).addTo(map);
 
-      // Blue User Dot with Rotating Blue Cone
       const userIcon = L.divIcon({
         className: 'user-marker-container',
         html: `
@@ -425,7 +453,6 @@
 
       userMarker = L.marker([currentLat, currentLon], { icon: userIcon }).addTo(map);
 
-      // Red Dotted Sight Line representing Phone Heading Direction
       headingLine = L.polyline([], {
         color: '#ef4444',
         weight: 4,
@@ -463,7 +490,6 @@
       updateNavigationHUD();
     }
 
-    // Projects a line 600ft ahead in the direction the phone is pointing
     function updateHeadingLine() {
       if (!headingLine) return;
       const rayEndpoint = projectPoint(currentLat, currentLon, currentHeading, 600);
@@ -471,7 +497,7 @@
     }
 
     function projectPoint(lat, lon, bearingDeg, distanceFeet) {
-      const R = 20902231; // Earth's radius in feet
+      const R = 20902231;
       const rad = Math.PI / 180;
       const lat1 = lat * rad;
       const lon1 = lon * rad;
@@ -510,11 +536,11 @@
       updateNavigationHUD();
     }
 
-    // Connect to MN DNR Bathymetry API
+    // Dynamic Attribute Scanning for MN DNR MapServer
     async function fetchDepthFromDnr(lat, lon) {
       try {
         const endpoint = `https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_lake_bathymetry/MapServer/identify`;
-        const delta = 0.001;
+        const delta = 0.002;
         const extent = `${lon - delta},${lat - delta},${lon + delta},${lat + delta}`;
 
         const params = new URLSearchParams({
@@ -522,7 +548,7 @@
           geometryType: 'esriGeometryPoint',
           sr: '4326',
           layers: 'all',
-          tolerance: '5',
+          tolerance: '10',
           mapExtent: extent,
           imageDisplay: '800,600,96',
           returnGeometry: 'false',
@@ -539,12 +565,22 @@
 
           for (let r of data.results) {
             if (r.attributes) {
-              if (r.attributes.WATERBODY_NAME) lakeName = r.attributes.WATERBODY_NAME;
-              if (r.attributes.LAKE_NAME && lakeName === "MN Lake") lakeName = r.attributes.LAKE_NAME;
-              if (r.attributes.DOW_NUMBER) dowNum = r.attributes.DOW_NUMBER;
-              if (r.attributes.PARENT_DOW) dowNum = r.attributes.PARENT_DOW;
-              if (r.attributes.CONTOUR !== undefined) rawDepth = r.attributes.CONTOUR;
-              if (r.attributes.DEPTH !== undefined) rawDepth = r.attributes.DEPTH;
+              const attrs = r.attributes;
+              for (let key in attrs) {
+                const lowerKey = key.toLowerCase();
+                const val = attrs[key];
+
+                if (val != null) {
+                  if (lowerKey.includes('waterbody') || lowerKey.includes('lake_name') || lowerKey.includes('name')) {
+                    if (val.toString().trim() !== '' && lakeName === "MN Lake") lakeName = val;
+                  }
+                  if (lowerKey.includes('dow') || lowerKey.includes('parent_dow')) dowNum = val;
+                  if (lowerKey.includes('depth') || lowerKey.includes('contour') || lowerKey.includes('grid_code') || lowerKey === 'val') {
+                    const parsed = parseFloat(val);
+                    if (!isNaN(parsed)) rawDepth = parsed;
+                  }
+                }
+              }
             }
           }
 
@@ -560,8 +596,7 @@
         }
 
         document.getElementById('current-depth').innerHTML = `<span style="font-size:1.5rem; color:#ef4444;">ON LAND</span>`;
-        document.getElementById('lake-name').innerText = "Not on a Mapped Lake";
-        currentLakeName = "Not on a Lake";
+        document.getElementById('lake-name').innerText = "Not on Mapped Lake";
         return false;
 
       } catch (err) {
@@ -569,7 +604,6 @@
       }
     }
 
-    // Auto-Find and Place Draggable Target
     async function setTargetDepth() {
       targetDepth = parseFloat(document.getElementById('target-input').value) || 24;
       document.getElementById('target-depth-display').innerHTML = `${targetDepth} <span class="stat-unit">ft</span>`;
@@ -583,7 +617,6 @@
 
       if (targetMarker) map.removeLayer(targetMarker);
 
-      // Draggable Red Target Marker 🚩
       targetMarker = L.marker(targetCoords, {
         draggable: true,
         icon: L.divIcon({
@@ -594,14 +627,12 @@
         })
       }).addTo(map);
 
-      // Real-time HUD update while dragging flag
       targetMarker.on('drag', function(e) {
         const latLng = e.target.getLatLng();
         targetCoords = [latLng.lat, latLng.lng];
         updateNavigationHUD();
       });
 
-      // Update status when user finishes dragging flag
       targetMarker.on('dragend', function(e) {
         const latLng = e.target.getLatLng();
         targetCoords = [latLng.lat, latLng.lng];
@@ -609,12 +640,7 @@
         updateNavigationHUD();
       });
 
-      if (isOnLake) {
-        document.getElementById('target-status').innerText = `Nearest ${targetDepth}ft spot! (Drag 🚩 to adjust)`;
-      } else {
-        document.getElementById('target-status').innerText = `Nearest spot pinned! (Drag 🚩 to adjust)`;
-      }
-
+      document.getElementById('target-status').innerText = `Nearest spot pinned! (Drag 🚩 to adjust)`;
       updateNavigationHUD();
     }
 
@@ -640,26 +666,28 @@
       document.getElementById('hud-distance').innerText = `${Math.round(distanceFeet)} FT TO TARGET 🚩`;
     }
 
-    // Open In-App DNR Depth Map Overlay
+    // DEPTH MAP BUTTON CLICK HANDLER (Works everywhere)
     function openLakeMap() {
+      if (currentDowNumber) {
+        displayPdfMap(currentDowNumber, currentLakeName);
+      } else {
+        // If standing on land (no current lake), open the Lake Picker Modal directly
+        openLakeSelectorModal();
+      }
+    }
+
+    function displayPdfMap(dowNumber, lakeName) {
       const overlay = document.getElementById('pdf-viewer-overlay');
       const frame = document.getElementById('pdf-frame');
       const title = document.getElementById('pdf-lake-title');
 
-      if (currentDowNumber) {
-        const formattedDow = String(currentDowNumber).padStart(8, '0');
-        const pdfUrl = `https://files.dnr.state.mn.us/lakefind/data/lakemaps/${formattedDow}.pdf`;
-        title.innerText = `${currentLakeName} Depth Map (DOW #${formattedDow})`;
-        frame.src = pdfUrl;
-      } else if (currentLakeName && currentLakeName !== "Not on a Lake" && currentLakeName !== "Unknown") {
-        title.innerText = `${currentLakeName} Map (Search)`;
-        frame.src = `https://www.dnr.state.mn.us/lakefind/index.html`;
-      } else {
-        alert("GPS could not find a mapped DNR lake for your location. Select a lake in Settings simulation mode.");
-        return;
-      }
-
+      const formattedDow = String(dowNumber).padStart(8, '0');
+      const pdfUrl = `https://files.dnr.state.mn.us/lakefind/data/lakemaps/${formattedDow}.pdf`;
+      
+      title.innerText = `${lakeName} Map (DOW #${formattedDow})`;
+      frame.src = pdfUrl;
       overlay.style.display = 'flex';
+      closeLakeSelectorModal();
     }
 
     function closeLakeMap() {
@@ -667,6 +695,103 @@
       const frame = document.getElementById('pdf-frame');
       overlay.style.display = 'none';
       frame.src = "about:blank";
+    }
+
+    // Lake Selector Modal Handlers
+    function openLakeSelectorModal() {
+      document.getElementById('lake-selector-modal').style.display = 'block';
+      fetchNearbyLakesForModal();
+    }
+    function closeLakeSelectorModal() {
+      document.getElementById('lake-selector-modal').style.display = 'none';
+    }
+
+    function loadSelectedPresetMap() {
+      const val = document.getElementById('lake-preset-select').value;
+      if (val) {
+        const parts = val.split('|');
+        displayPdfMap(parts[0], parts[1]);
+      }
+    }
+
+    function loadCustomDowMap() {
+      const inputVal = document.getElementById('custom-dow-input').value.trim();
+      if (inputVal) {
+        displayPdfMap(inputVal, `Lake DOW #${inputVal}`);
+      }
+    }
+
+    // Queries nearby lakes around current GPS position for home planning
+    async function fetchNearbyLakesForModal() {
+      const listEl = document.getElementById('nearby-lakes-list');
+      listEl.innerHTML = `<span style="color:#64748b; font-size:0.85rem;">Querying MN DNR Map Server...</span>`;
+
+      try {
+        const endpoint = `https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/water_lake_bathymetry/MapServer/identify`;
+        const delta = 0.05; // ~3 mile search radius around current GPS
+        const extent = `${currentLon - delta},${currentLat - delta},${currentLon + delta},${currentLat + delta}`;
+
+        const params = new URLSearchParams({
+          geometry: JSON.stringify({ x: currentLon, y: currentLat, spatialReference: { wkid: 4326 } }),
+          geometryType: 'esriGeometryPoint',
+          sr: '4326',
+          layers: 'all',
+          tolerance: '25',
+          mapExtent: extent,
+          imageDisplay: '800,600,96',
+          returnGeometry: 'false',
+          f: 'json'
+        });
+
+        const res = await fetch(`${endpoint}?${params.toString()}`);
+        const data = await res.json();
+
+        let lakesFound = {};
+
+        if (data.results && data.results.length > 0) {
+          for (let r of data.results) {
+            if (r.attributes) {
+              const name = r.attributes.WATERBODY_NAME || r.attributes.LAKE_NAME;
+              const dow = r.attributes.DOW_NUMBER || r.attributes.PARENT_DOW;
+              if (name && dow) {
+                lakesFound[dow] = name;
+              }
+            }
+          }
+        }
+
+        const keys = Object.keys(lakesFound);
+        if (keys.length > 0) {
+          listEl.innerHTML = keys.map(dow => `
+            <div class="hole-item" onclick="displayPdfMap('${dow}', '${lakesFound[dow]}')">
+              <div>
+                <strong>${lakesFound[dow]}</strong><br>
+                <small style="color:#64748b;">DOW #${dow}</small>
+              </div>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">VIEW MAP &rsaquo;</span>
+            </div>
+          `).join('');
+        } else {
+          // Fallback list of Minneapolis lakes near user
+          listEl.innerHTML = `
+            <div class="hole-item" onclick="displayPdfMap('27003100', 'Bde Maka Ska')">
+              <div><strong>Bde Maka Ska</strong><br><small style="color:#64748b;">DOW #27003100</small></div>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">VIEW MAP &rsaquo;</span>
+            </div>
+            <div class="hole-item" onclick="displayPdfMap('27001600', 'Lake Harriet')">
+              <div><strong>Lake Harriet</strong><br><small style="color:#64748b;">DOW #27001600</small></div>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">VIEW MAP &rsaquo;</span>
+            </div>
+            <div class="hole-item" onclick="displayPdfMap('27001900', 'Lake Nokomis')">
+              <div><strong>Lake Nokomis</strong><br><small style="color:#64748b;">DOW #27001900</small></div>
+              <span style="color:#38bdf8; font-weight:bold; font-size:0.85rem;">VIEW MAP &rsaquo;</span>
+            </div>
+          `;
+        }
+
+      } catch (err) {
+        listEl.innerHTML = `<span style="color:#ef4444; font-size:0.85rem;">Could not query nearby lakes automatically. Use preset dropdown above.</span>`;
+      }
     }
 
     function getDistanceInFeet(lat1, lon1, lat2, lon2) {
@@ -737,7 +862,14 @@
 
     function toggleSimulation() {
       const val = document.getElementById('sim-select').value;
-      if (val === 'nokomis') {
+      if (val === 'bde_maka_ska') {
+        isSimulating = true;
+        currentLat = 44.9450; currentLon = -93.3150;
+        currentDowNumber = "27003100";
+        currentLakeName = "Bde Maka Ska";
+        document.getElementById('current-depth').innerHTML = `25.0 <span class="stat-unit">ft</span>`;
+        document.getElementById('lake-name').innerText = "Bde Maka Ska (Sim)";
+      } else if (val === 'nokomis') {
         isSimulating = true;
         currentLat = 44.9085; currentLon = -93.2425;
         currentDowNumber = "27001900";
@@ -751,13 +883,6 @@
         currentLakeName = "Mille Lacs Lake";
         document.getElementById('current-depth').innerHTML = `28.5 <span class="stat-unit">ft</span>`;
         document.getElementById('lake-name').innerText = "Mille Lacs Lake (Sim)";
-      } else if (val === 'minnetonka') {
-        isSimulating = true;
-        currentLat = 44.9210; currentLon = -93.5820;
-        currentDowNumber = "27013300";
-        currentLakeName = "Lake Minnetonka";
-        document.getElementById('current-depth').innerHTML = `22.0 <span class="stat-unit">ft</span>`;
-        document.getElementById('lake-name').innerText = "Lake Minnetonka (Sim)";
       } else {
         isSimulating = false;
         currentDowNumber = null;
